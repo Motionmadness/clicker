@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THE BUTTON</title>
+  <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --red: #ff1a1a;
+      --red-dark: #b30000;
+      --red-glow: #ff4444;
+      --bg: #0a0a0a;
+      --panel: #111;
+      --border: #222;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .game-layout {
+      display: flex;
+      align-items: center;
+      gap: 3rem;
+    }
+
+    /* ── GAME PANEL ── */
+    .game-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .title {
+      font-family: 'Black Ops One', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      color: var(--red);
+      letter-spacing: 0.3em;
+      text-shadow: 0 0 20px var(--red), 0 0 60px rgba(255,26,26,0.4);
+      margin-bottom: 0.4rem;
+      animation: flicker 6s infinite;
+    }
+
+    .subtitle {
+      font-size: 0.7rem;
+      color: #444;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+    }
+
+    .counter-wrapper {
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 3rem;
+      align-items: flex-end;
+    }
+
+    .stat { text-align: center; }
+    .stat-label { font-size: 0.6rem; letter-spacing: 0.25em; color: #555; text-transform: uppercase; margin-bottom: 0.3rem; }
+    .stat-value { font-size: 2rem; color: #eee; transition: color 0.1s; }
+    .stat-value.flash { color: var(--red-glow); }
+    #click-count { font-size: 3.5rem; color: var(--red); text-shadow: 0 0 15px rgba(255,26,26,0.6); }
+
+    .btn-container { position: relative; display: flex; align-items: center; justify-content: center; }
+
+    .ring { position: absolute; border-radius: 50%; border: 2px solid var(--red); opacity: 0; pointer-events: none; }
+    .ring-1 { width: 220px; height: 220px; animation: ring-pulse 2s infinite 0s; }
+    .ring-2 { width: 260px; height: 260px; animation: ring-pulse 2s infinite 0.4s; }
+    .ring-3 { width: 300px; height: 300px; animation: ring-pulse 2s infinite 0.8s; }
+
+    @keyframes ring-pulse {
+      0%   { opacity: 0.6; transform: scale(0.9); }
+      100% { opacity: 0;   transform: scale(1.15); }
+    }
+
+    #big-btn {
+      position: relative;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      background: radial-gradient(circle at 35% 35%, #ff4444, var(--red) 55%, var(--red-dark));
+      box-shadow:
+        0 0 0 6px #1a0000,
+        0 0 0 10px #330000,
+        0 12px 0 8px #660000,
+        0 0 40px rgba(255,26,26,0.5),
+        0 0 80px rgba(255,26,26,0.2);
+      transform: translateY(0);
+      transition: transform 0.06s, box-shadow 0.06s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #big-btn::after {
+      content: '';
+      position: absolute;
+      top: 12%; left: 18%;
+      width: 40%; height: 25%;
+      background: rgba(255,255,255,0.15);
+      border-radius: 50%;
+      filter: blur(4px);
+      pointer-events: none;
+    }
+
+    #big-btn.pressed {
+      transform: translateY(10px);
+      box-shadow:
+        0 0 0 6px #1a0000,
+        0 0 0 10px #330000,
+        0 2px 0 8px #660000,
+        0 0 30px rgba(255,26,26,0.4),
+        0 0 60px rgba(255,26,26,0.15);
+    }
+
+    .message {
+      margin-top: 2.5rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: #333;
+      height: 1rem;
+      text-transform: uppercase;
+    }
+    .message.active { color: #666; }
+
+    .user-bar {
+      margin-top: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.65rem;
+      color: #444;
+      letter-spacing: 0.1em;
+    }
+    .user-bar span { color: #888; }
+    .user-bar button {
+      background: none;
+      border: 1px solid #333;
+      color: #555;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.6rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .user-bar button:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── LEADERBOARD ── */
+    .leaderboard-panel {
+      width: 260px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 1.2rem;
+    }
+
+    .lb-title {
+      font-family: 'Black Ops One', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.3em;
+      color: var(--red);
+      text-align: center;
+      margin-bottom: 0.3rem;
+      text-shadow: 0 0 10px rgba(255,26,26,0.4);
+    }
+
+    .lb-subtitle {
+      font-size: 0.55rem;
+      color: #333;
+      text-align: center;
+      letter-spacing: 0.15em;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+    }
+
+    .lb-list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+
+    .lb-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid transparent;
+      transition: border-color 0.2s;
+      font-size: 0.72rem;
+    }
+
+    .lb-item.is-me {
+      border-color: #330000;
+      background: rgba(255,26,26,0.05);
+    }
+
+    .lb-rank { width: 1.4rem; text-align: right; color: #444; font-size: 0.6rem; flex-shrink: 0; }
+    .lb-rank.top-3 { color: var(--red); font-size: 0.75rem; }
+    .lb-name { flex: 1; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-item.is-me .lb-name { color: var(--red-glow); }
+    .lb-score { color: #666; font-size: 0.65rem; flex-shrink: 0; }
+    .lb-item.is-me .lb-score { color: #ff6666; }
+    .lb-empty { text-align: center; color: #333; font-size: 0.65rem; padding: 1.5rem 0; letter-spacing: 0.1em; }
+
+    .lb-footer { margin-top: 0.8rem; font-size: 0.55rem; color: #2a2a2a; text-align: center; letter-spacing: 0.1em; }
+
+    .sync-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #333;
+      margin-right: 0.3rem;
+      transition: background 0.3s;
+      vertical-align: middle;
+    }
+    .sync-dot.syncing { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    .sync-dot.ok { background: #1a7a1a; box-shadow: 0 0 6px #1a7a1a; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      backdrop-filter: blur(3px);
+    }
+    .modal-overlay.hidden { display: none; }
+
+    .modal {
+      background: #0d0d0d;
+      border: 1px solid #2a2a2a;
+      width: 320px;
+      padding: 2rem;
+    }
+
+    .modal-title {
+      font-family: 'Black Ops One', sans-serif;
+      color: var(--red);
+      letter-spacing: 0.25em;
+      font-size: 1.3rem;
+      margin-bottom: 0.3rem;
+      text-shadow: 0 0 15px rgba(255,26,26,0.4);
+    }
+
+    .modal-sub {
+      font-size: 0.6rem;
+      color: #444;
+      letter-spacing: 0.15em;
+      margin-bottom: 1.8rem;
+      text-transform: uppercase;
+    }
+
+    .tab-row {
+      display: flex;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid #222;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #444;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 0.5rem;
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: all 0.2s;
+    }
+    .tab-btn.active { color: var(--red); border-bottom-color: var(--red); }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.6rem; letter-spacing: 0.2em; color: #555; text-transform: uppercase; margin-bottom: 0.4rem; }
+    .form-group input {
+      width: 100%;
+      background: #0a0a0a;
+      border: 1px solid #2a2a2a;
+      color: #ccc;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0.6rem 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: #444; }
+
+    .submit-btn {
+      width: 100%;
+      background: var(--red-dark);
+      border: none;
+      color: #fff;
+      font-family: 'Black Ops One', sans-serif;
+      letter-spacing: 0.2em;
+      font-size: 0.85rem;
+      padding: 0.75rem;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .submit-btn:hover { background: var(--red); box-shadow: 0 0 20px rgba(255,26,26,0.4); }
+    .submit-btn:disabled { background: #2a0000; color: #555; cursor: not-allowed; box-shadow: none; }
+
+    .modal-error { font-size: 0.65rem; color: #ff6666; letter-spacing: 0.1em; margin-top: 0.8rem; min-height: 1rem; text-align: center; }
+
+    .modal-skip {
+      display: block;
+      text-align: center;
+      margin-top: 1rem;
+      font-size: 0.6rem;
+      color: #333;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: color 0.2s;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      font-family: 'Share Tech Mono', monospace;
+      width: 100%;
+    }
+    .modal-skip:hover { color: #555; }
+
+    /* ── PARTICLES ── */
+    .particle {
+      position: fixed;
+      pointer-events: none;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--red-glow);
+      animation: particle-up 0.8s ease-out forwards;
+      z-index: 50;
+    }
+
+    @keyframes particle-up {
+      0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+      100% { opacity: 0; transform: translate(var(--dx), -80px) scale(0.5); }
+    }
+
+    .milestone {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Black Ops One', sans-serif;
+      font-size: clamp(2rem, 8vw, 5rem);
+      color: var(--red);
+      text-shadow: 0 0 30px var(--red), 0 0 80px rgba(255,26,26,0.5);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 200;
+      animation: milestone-pop 1.5s ease-out forwards;
+    }
+
+    @keyframes milestone-pop {
+      0%   { opacity: 0; transform: scale(0.5); }
+      20%  { opacity: 1; transform: scale(1.1); }
+      50%  { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.9); }
+    }
+
+    @keyframes flicker {
+      0%, 95%, 100% { opacity: 1; }
+      96% { opacity: 0.85; }
+      97% { opacity: 1; }
+      98% { opacity: 0.7; }
+      99% { opacity: 1; }
+    }
+
+    @media (max-width: 680px) {
+      .game-layout { flex-direction: column; gap: 2rem; }
+      .leaderboard-panel { width: 300px; }
+      body { overflow-y: auto; justify-content: flex-start; padding: 2rem 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- AUTH MODAL -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">IDENTIFY</div>
+      <div class="modal-sub">Sign in to appear on the leaderboard</div>
+
+      <div class="tab-row">
+        <button class="tab-btn active" id="tab-signin" onclick="switchTab('signin')">SIGN IN</button>
+        <button class="tab-btn" id="tab-signup" onclick="switchTab('signup')">SIGN UP</button>
+      </div>
+
+      <div id="form-signin">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="signin-username" placeholder="your_username" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signin-password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="submit-btn" id="signin-btn" onclick="handleSignIn()">SIGN IN</button>
+      </div>
+
+      <div id="form-signup" style="display:none">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="signup-username" placeholder="your_username" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signup-password" placeholder="min. 6 characters" autocomplete="new-password" />
+        </div>
+        <button class="submit-btn" id="signup-btn" onclick="handleSignUp()">CREATE ACCOUNT</button>
+      </div>
+
+      <div class="modal-error" id="modal-error"></div>
+      <button class="modal-skip" onclick="skipAuth()">play without account (score won't be saved)</button>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div class="game-layout">
+    <div class="game-panel">
+      <div class="title">THE BUTTON</div>
+      <div class="subtitle">click it. you know you want to.</div>
+
+      <div class="counter-wrapper">
+        <div class="stat">
+          <div class="stat-label">Session</div>
+          <div class="stat-value" id="session-count">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Total Clicks</div>
+          <div class="stat-value" id="click-count">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">CPS</div>
+          <div class="stat-value" id="cps">0</div>
+        </div>
+      </div>
+
+      <div class="btn-container">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <button id="big-btn" onclick="handleClick(event)" aria-label="Click me!"></button>
+      </div>
+
+      <div class="message" id="message"></div>
+
+      <div class="user-bar">
+        <div id="user-status">not signed in</div>
+        <button id="auth-action-btn" onclick="showModal()">SIGN IN</button>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div class="leaderboard-panel">
+      <div class="lb-title">LEADERBOARD</div>
+      <div class="lb-subtitle">Top 10 — All Time</div>
+      <ul class="lb-list" id="lb-list">
+        <li class="lb-empty">loading...</li>
+      </ul>
+      <div class="lb-footer">
+        <span class="sync-dot" id="sync-dot"></span>
+        <span id="sync-label">syncs every 10s</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────────
+    // !! REPLACE THESE TWO VALUES WITH YOUR OWN SUPABASE PROJECT INFO !!
+    // Find them in your Supabase dashboard → Project Settings → API
+    // ─────────────────────────────────────────────────────────────────
+    const SUPABASE_URL     = 'https://YOUR_PROJECT_ID.supabase.co';
+    const SUPABASE_ANON_KEY = 'YOUR_ANON_PUBLIC_KEY_HERE';
+    // ─────────────────────────────────────────────────────────────────
+
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+    let currentUsername = null;
+    let total = 0;
+    let session = 0;
+    let clickTimes = [];
+    let pendingSync = false;
+
+    const messages = [
+      "keep going.", "don't stop.", "why are you doing this?",
+      "impressive.", "getting warmer.", "the button appreciates you.",
+      "unstoppable.", "maximum effort.", "you cannot stop.", "ascension mode.",
+      "the button sees you.", "beyond limits.", "legendary."
+    ];
+
+    const milestones = {
+      10: "TEN!", 50: "FIFTY!", 100: "ONE HUNDRED!",
+      500: "FIVE HUNDRED!", 1000: "ONE THOUSAND!", 5000: "FIVE THOUSAND!",
+      10000: "TEN THOUSAND!", 100000: "SIX FIGURES!"
+    };
+
+    // ── AUTH ──────────────────────────────────────
+    function switchTab(tab) {
+      document.getElementById('form-signin').style.display = tab === 'signin' ? 'block' : 'none';
+      document.getElementById('form-signup').style.display = tab === 'signup' ? 'block' : 'none';
+      document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+      document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+      setModalError('');
+    }
+
+    function showModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
+    function hideModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+    function skipAuth()  { hideModal(); }
+
+    function setModalError(msg) { document.getElementById('modal-error').textContent = msg; }
+
+    function setSubmitting(form, loading) {
+      const btn = document.getElementById(form === 'signin' ? 'signin-btn' : 'signup-btn');
+      btn.disabled = loading;
+      btn.textContent = loading ? 'PLEASE WAIT...' : (form === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT');
+    }
+
+    async function handleSignIn() {
+      const username = document.getElementById('signin-username').value.trim();
+      const password = document.getElementById('signin-password').value;
+      if (!username || !password) return setModalError('enter username and password.');
+
+      setSubmitting('signin', true);
+      setModalError('');
+
+      // We use a fake-email pattern so Supabase's email auth works without real emails
+      const fakeEmail = `${username}@thegame.local`;
+      const { data, error } = await db.auth.signInWithPassword({ email: fakeEmail, password });
+
+      if (error) {
+        setModalError('invalid username or password.');
+        setSubmitting('signin', false);
+        return;
+      }
+      await onSignedIn(data.user, username);
+    }
+
+    async function handleSignUp() {
+      const username = document.getElementById('signup-username').value.trim();
+      const password = document.getElementById('signup-password').value;
+
+      if (!username)                         return setModalError('choose a username.');
+      if (username.length < 3)               return setModalError('username must be 3+ characters.');
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) return setModalError('letters, numbers, underscores only.');
+      if (password.length < 6)               return setModalError('password must be 6+ characters.');
+
+      setSubmitting('signup', true);
+      setModalError('');
+
+      // Check username availability
+      const { data: existing } = await db
+        .from('scores')
+        .select('username')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (existing) {
+        setModalError('username already taken.');
+        setSubmitting('signup', false);
+        return;
+      }
+
+      const fakeEmail = `${username}@thegame.local`;
+      const { data, error } = await db.auth.signUp({ email: fakeEmail, password });
+
+      if (error) {
+        setModalError(error.message);
+        setSubmitting('signup', false);
+        return;
+      }
+
+      // Create score row for this user
+      await db.from('scores').insert({ user_id: data.user.id, username, clicks: 0 });
+      await onSignedIn(data.user, username);
+    }
+
+    async function onSignedIn(user, username) {
+      currentUser = user;
+      currentUsername = username;
+
+      // Load their saved total
+      const { data } = await db
+        .from('scores')
+        .select('clicks')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (data) total = data.clicks;
+
+      updateDisplay();
+      updateUserBar();
+      hideModal();
+      fetchLeaderboard();
+    }
+
+    function updateUserBar() {
+      const status = document.getElementById('user-status');
+      const btn    = document.getElementById('auth-action-btn');
+      if (currentUser) {
+        status.innerHTML = `logged in as <span>${escapeHtml(currentUsername)}</span>`;
+        btn.textContent = 'SIGN OUT';
+        btn.onclick = handleSignOut;
+      } else {
+        status.textContent = 'not signed in';
+        btn.textContent = 'SIGN IN';
+        btn.onclick = showModal;
+      }
+    }
+
+    async function handleSignOut() {
+      await syncScore(true); // final sync before leaving
+      await db.auth.signOut();
+      currentUser = null;
+      currentUsername = null;
+      total = 0;
+      session = 0;
+      pendingSync = false;
+      updateDisplay();
+      updateUserBar();
+      fetchLeaderboard();
+    }
+
+    // ── GAME ──────────────────────────────────────
+    function handleClick(e) {
+      total++;
+      session++;
+      clickTimes.push(Date.now());
+      pendingSync = true;
+
+      updateDisplay();
+      updateCPS();
+      updateMessage();
+
+      const countEl = document.getElementById('click-count');
+      countEl.classList.add('flash');
+      setTimeout(() => countEl.classList.remove('flash'), 100);
+
+      spawnParticle(e.clientX - 12, e.clientY - 20);
+
+      const btn = document.getElementById('big-btn');
+      btn.classList.add('pressed');
+      setTimeout(() => btn.classList.remove('pressed'), 100);
+
+      if (milestones[total]) showMilestone(milestones[total]);
+    }
+
+    function updateDisplay() {
+      document.getElementById('click-count').textContent  = total.toLocaleString();
+      document.getElementById('session-count').textContent = session.toLocaleString();
+    }
+
+    function updateCPS() {
+      const now = Date.now();
+      clickTimes = clickTimes.filter(t => now - t < 1000);
+      document.getElementById('cps').textContent = clickTimes.length;
+    }
+
+    function updateMessage() {
+      const idx = Math.min(Math.floor(Math.log2(session + 1)), messages.length - 1);
+      const el = document.getElementById('message');
+      el.textContent = messages[idx];
+      el.classList.add('active');
+    }
+
+    function spawnParticle(x, y) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.textContent = '+1';
+      p.style.cssText = `left:${x}px;top:${y}px;--dx:${(Math.random()-0.5)*60}px`;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 800);
+    }
+
+    function showMilestone(text) {
+      const m = document.createElement('div');
+      m.className = 'milestone';
+      m.textContent = text;
+      document.body.appendChild(m);
+      setTimeout(() => m.remove(), 1500);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        document.getElementById('big-btn').click();
+      }
+    });
+
+    // ── LEADERBOARD ───────────────────────────────
+    async function fetchLeaderboard() {
+      const { data, error } = await db
+        .from('scores')
+        .select('username, clicks')
+        .order('clicks', { ascending: false })
+        .limit(10);
+
+      const list = document.getElementById('lb-list');
+
+      if (error || !data || data.length === 0) {
+        list.innerHTML = '<li class="lb-empty">no scores yet. be first!</li>';
+        return;
+      }
+
+      const medals = ['🥇', '🥈', '🥉'];
+      list.innerHTML = data.map((row, i) => {
+        const isMe = row.username === currentUsername;
+        const rank = i < 3
+          ? `<span class="lb-rank top-3">${medals[i]}</span>`
+          : `<span class="lb-rank">${i + 1}.</span>`;
+        return `
+          <li class="lb-item${isMe ? ' is-me' : ''}">
+            ${rank}
+            <span class="lb-name">${escapeHtml(row.username)}</span>
+            <span class="lb-score">${row.clicks.toLocaleString()}</span>
+          </li>`;
+      }).join('');
+    }
+
+    async function syncScore(force = false) {
+      if (!currentUser || (!pendingSync && !force)) return;
+      pendingSync = false;
+
+      const dot   = document.getElementById('sync-dot');
+      const label = document.getElementById('sync-label');
+      dot.className = 'sync-dot syncing';
+      label.textContent = 'syncing...';
+
+      const { error } = await db
+        .from('scores')
+        .update({ clicks: total })
+        .eq('user_id', currentUser.id);
+
+      if (!error) {
+        dot.className = 'sync-dot ok';
+        label.textContent = 'saved ✓';
+        setTimeout(() => {
+          dot.className = 'sync-dot';
+          label.textContent = 'syncs every 10s';
+        }, 2000);
+        fetchLeaderboard();
+      } else {
+        dot.className = 'sync-dot';
+        label.textContent = 'sync failed';
+        pendingSync = true;
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ── STARTUP ───────────────────────────────────
+    setInterval(updateCPS, 200);
+    setInterval(syncScore, 10000);
+    setInterval(fetchLeaderboard, 10000);
+
+    // Restore existing Supabase session (if user was already signed in)
+    (async () => {
+      const { data: { session: existing } } = await db.auth.getSession();
+      if (existing?.user) {
+        const user = existing.user;
+        const { data } = await db
+          .from('scores')
+          .select('username, clicks')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (data) {
+          currentUser = user;
+          currentUsername = data.username;
+          total = data.clicks;
+          updateDisplay();
+          updateUserBar();
+          hideModal();
+        }
+      }
+      fetchLeaderboard();
+    })();
+  </script>
+</body>
+</html>
